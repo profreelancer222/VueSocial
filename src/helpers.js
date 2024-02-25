@@ -63,7 +63,35 @@ export const mapState = normalizeNamespace((namespace, states) => {
   return res
 })
 
-
+/**
+ * Reduce the code which written in Vue.js for dispatch the action
+ * @param {String} [namespace] - Module's namespace
+ * @param {Object|Array} actions # Object's item can be a function which accept `dispatch` function as the first param, it can accept anthor params. You can dispatch action and do any other things in this function. specially, You need to pass anthor params from the mapped function.
+ * @return {Object}
+ */
+export const mapActions = normalizeNamespace((namespace, actions) => {
+  const res = {}
+  if (__DEV__ && !isValidMap(actions)) {
+    console.error('[vuex] mapActions: mapper parameter must be either an Array or an Object')
+  }
+  normalizeMap(actions).forEach(({ key, val }) => {
+    res[key] = function mappedAction (...args) {
+      // get dispatch function from store
+      let dispatch = this.$store.dispatch
+      if (namespace) {
+        const module = getModuleByNamespace(this.$store, 'mapActions', namespace)
+        if (!module) {
+          return
+        }
+        dispatch = module.context.dispatch
+      }
+      return typeof val === 'function'
+        ? val.apply(this, [dispatch].concat(args))
+        : dispatch.apply(this.$store, [val].concat(args))
+    }
+  })
+  return res
+})
 
 /**
  * Reduce the code which written in Vue.js for getting the getters
@@ -95,35 +123,7 @@ export const mapGetters = normalizeNamespace((namespace, getters) => {
   return res
 })
 
-/**
- * Reduce the code which written in Vue.js for dispatch the action
- * @param {String} [namespace] - Module's namespace
- * @param {Object|Array} actions # Object's item can be a function which accept `dispatch` function as the first param, it can accept anthor params. You can dispatch action and do any other things in this function. specially, You need to pass anthor params from the mapped function.
- * @return {Object}
- */
-export const mapActions = normalizeNamespace((namespace, actions) => {
-  const res = {}
-  if (__DEV__ && !isValidMap(actions)) {
-    console.error('[vuex] mapActions: mapper parameter must be either an Array or an Object')
-  }
-  normalizeMap(actions).forEach(({ key, val }) => {
-    res[key] = function mappedAction (...args) {
-      // get dispatch function from store
-      let dispatch = this.$store.dispatch
-      if (namespace) {
-        const module = getModuleByNamespace(this.$store, 'mapActions', namespace)
-        if (!module) {
-          return
-        }
-        dispatch = module.context.dispatch
-      }
-      return typeof val === 'function'
-        ? val.apply(this, [dispatch].concat(args))
-        : dispatch.apply(this.$store, [val].concat(args))
-    }
-  })
-  return res
-})
+
 
 /**
  * Rebinding namespace param for mapXXX function in special scoped, and return them by simple object

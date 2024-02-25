@@ -1,6 +1,39 @@
 import { isObject } from './util'
 
 /**
+ * Reduce the code which written in Vue.js for getting the state.
+ * @param {String} [namespace] - Module's namespace
+ * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
+ * @param {Object}
+ */
+export const mapState = normalizeNamespace((namespace, states) => {
+  const res = {}
+  if (__DEV__ && !isValidMap(states)) {
+    console.error('[vuex] mapState: mapper parameter must be either an Array or an Object')
+  }
+  normalizeMap(states).forEach(({ key, val }) => {
+    res[key] = function mappedState () {
+      let state = this.$store.state
+      let getters = this.$store.getters
+      if (namespace) {
+        const module = getModuleByNamespace(this.$store, 'mapState', namespace)
+        if (!module) {
+          return
+        }
+        state = module.context.state
+        getters = module.context.getters
+      }
+      return typeof val === 'function'
+        ? val.call(this, state, getters)
+        : state[val]
+    }
+    // mark vuex getter for devtools
+    res[key].vuex = true
+  })
+  return res
+})
+
+/**
  * Reduce the code which written in Vue.js for committing the mutation
  * @param {String} [namespace] - Module's namespace
  * @param {Object|Array} mutations # Object's item can be a function which accept `commit` function as the first param, it can accept another params. You can commit mutation and do any other things in this function. specially, You need to pass anthor params from the mapped function.
@@ -31,31 +64,28 @@ export const mapMutations = normalizeNamespace((namespace, mutations) => {
 })
 
 /**
- * Reduce the code which written in Vue.js for getting the state.
+ * Reduce the code which written in Vue.js for getting the getters
  * @param {String} [namespace] - Module's namespace
- * @param {Object|Array} states # Object's item can be a function which accept state and getters for param, you can do something for state and getters in it.
- * @param {Object}
+ * @param {Object|Array} getters
+ * @return {Object}
  */
-export const mapState = normalizeNamespace((namespace, states) => {
+export const mapGetters = normalizeNamespace((namespace, getters) => {
   const res = {}
-  if (__DEV__ && !isValidMap(states)) {
-    console.error('[vuex] mapState: mapper parameter must be either an Array or an Object')
+  if (__DEV__ && !isValidMap(getters)) {
+    console.error('[vuex] mapGetters: mapper parameter must be either an Array or an Object')
   }
-  normalizeMap(states).forEach(({ key, val }) => {
-    res[key] = function mappedState () {
-      let state = this.$store.state
-      let getters = this.$store.getters
-      if (namespace) {
-        const module = getModuleByNamespace(this.$store, 'mapState', namespace)
-        if (!module) {
-          return
-        }
-        state = module.context.state
-        getters = module.context.getters
+  normalizeMap(getters).forEach(({ key, val }) => {
+    // The namespace has been mutated by normalizeNamespace
+    val = namespace + val
+    res[key] = function mappedGetter () {
+      if (namespace && !getModuleByNamespace(this.$store, 'mapGetters', namespace)) {
+        return
       }
-      return typeof val === 'function'
-        ? val.call(this, state, getters)
-        : state[val]
+      if (__DEV__ && !(val in this.$store.getters)) {
+        console.error(`[vuex] unknown getter: ${val}`)
+        return
+      }
+      return this.$store.getters[val]
     }
     // mark vuex getter for devtools
     res[key].vuex = true
@@ -92,38 +122,6 @@ export const mapActions = normalizeNamespace((namespace, actions) => {
   })
   return res
 })
-
-/**
- * Reduce the code which written in Vue.js for getting the getters
- * @param {String} [namespace] - Module's namespace
- * @param {Object|Array} getters
- * @return {Object}
- */
-export const mapGetters = normalizeNamespace((namespace, getters) => {
-  const res = {}
-  if (__DEV__ && !isValidMap(getters)) {
-    console.error('[vuex] mapGetters: mapper parameter must be either an Array or an Object')
-  }
-  normalizeMap(getters).forEach(({ key, val }) => {
-    // The namespace has been mutated by normalizeNamespace
-    val = namespace + val
-    res[key] = function mappedGetter () {
-      if (namespace && !getModuleByNamespace(this.$store, 'mapGetters', namespace)) {
-        return
-      }
-      if (__DEV__ && !(val in this.$store.getters)) {
-        console.error(`[vuex] unknown getter: ${val}`)
-        return
-      }
-      return this.$store.getters[val]
-    }
-    // mark vuex getter for devtools
-    res[key].vuex = true
-  })
-  return res
-})
-
-
 
 /**
  * Rebinding namespace param for mapXXX function in special scoped, and return them by simple object
